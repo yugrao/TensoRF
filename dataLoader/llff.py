@@ -7,6 +7,7 @@ from PIL import Image
 from torchvision import transforms as T
 
 from .ray_utils import *
+from DSNeRF.load_llff import load_colmap_depth
 
 
 def normalize(v):
@@ -220,6 +221,8 @@ class LLFFDataset(Dataset):
 
             self.all_rays += [torch.cat([rays_o, rays_d], 1)]  # (h*w, 6)
 
+        self.all_depths = load_colmap_depth(self.root_dir, factor=self.downsample)
+        
         if not self.is_stack:
             self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 3)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # (len(self.meta['frames])*h*w,3)
