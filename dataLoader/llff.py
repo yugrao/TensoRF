@@ -122,7 +122,7 @@ def get_spiral(c2ws_all, near_fars, rads_scale=1.0, N_views=120):
 
 
 class LLFFDataset(Dataset):
-    def __init__(self, datadir, split='train', downsample=4, is_stack=False, hold_every=8):
+    def __init__(self, datadir, split='train', downsample=4, is_stack=False, hold_every=None, low_data=False):
         """
         spheric_poses: whether the images are taken in a spheric inward-facing manner
                        default: False (forward-facing)
@@ -131,9 +131,10 @@ class LLFFDataset(Dataset):
 
         self.root_dir = datadir
         self.split = split
-        self.hold_every = hold_every
+        self.hold_every = (2 if low_data else 8) if hold_every is None else hold_every
         self.is_stack = is_stack
         self.downsample = downsample
+        self.low_data = low_data
         self.define_transforms()
 
         self.blender2opencv = np.eye(4)#np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
@@ -199,8 +200,15 @@ class LLFFDataset(Dataset):
 
         average_pose = average_poses(self.poses)
         dists = np.sum(np.square(average_pose[:3, 3] - self.poses[:, :3, 3]), -1)
-        i_test = np.arange(0, self.poses.shape[0], self.hold_every)  # [np.argmin(dists)]
-        img_list = i_test if self.split != 'train' else list(set(np.arange(len(self.poses))) - set(i_test))
+        if low_data:
+            TOTAL_DATA_LEN = 8
+            subset_imgs = np.linspace(0, self.poses.shape[0], 8, dtype=int)
+            i_test_idx = np.arange(0, TOTAL_DATA_LEN, self.hold_every)  # [np.argmin(dists)]
+            i_test = subset_imgs[i_test_idx]
+            img_list = i_test if self.split != 'train' else list(set(subset_imgs) - set(i_test))
+        else:
+            i_test = np.arange(0, self.poses.shape[0], self.hold_every)  # [np.argmin(dists)]
+            img_list = i_test if self.split != 'train' else list(set(np.arange(len(self.poses))) - set(i_test))
 
         # use first N_images-1 to train, the LAST is val
         self.all_rays = []
@@ -232,8 +240,8 @@ class LLFFDataset(Dataset):
             rays_depth = np.concatenate([rays_depth, depth_value, weights], axis=1) # N x 4 x 3
             rays_depth_list.append(rays_depth)
         self.rays_depths = np.concatenate(rays_depth_list, axis=0)
-        self.rays_depths = torch.from_numpy(self.rays_depths)
-        breakpoint()
+        self.rays_depths = torch.from_numpy(self.rays_depths).type(torch.FloatTensor)
+        # breakpoint()
 
         if not self.is_stack:
             self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 3)

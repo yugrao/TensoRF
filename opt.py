@@ -28,6 +28,9 @@ def config_parser(cmd=None):
 
     parser.add_argument('--dataset_name', type=str, default='blender',
                         choices=['blender', 'llff', 'nsvf', 'dtu','tankstemple', 'own_data'])
+    
+    parser.add_argument("--low_data", action='store_true')
+    parser.add_argument("--depth_sup", action='store_true')
 
 
     # training options

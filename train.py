@@ -90,8 +90,8 @@ def reconstruction(args):
 
     # init dataset
     dataset = dataset_dict[args.dataset_name]
-    train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=False)
-    test_dataset = dataset(args.datadir, split='test', downsample=args.downsample_train, is_stack=True)
+    train_dataset = dataset(args.datadir, split='train', downsample=args.downsample_train, is_stack=False, low_data=args.low_data)
+    test_dataset = dataset(args.datadir, split='test', downsample=args.downsample_train, is_stack=True, low_data=args.low_data)
     white_bg = train_dataset.white_bg
     near_far = train_dataset.near_far
     ndc_ray = args.ndc_ray
@@ -191,11 +191,17 @@ def reconstruction(args):
                                 N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, device=device, is_train=True)
 
         loss = torch.mean((rgb_map - rgb_train) ** 2)
-        D_loss = torch.mean(((D_depth_map - D_depths_train) ** 2) * D_weights_train)
-        loss += D_loss
+        loss_val = loss.detach().item()
 
         # loss
         total_loss = loss
+        D_loss = torch.mean(((D_depth_map - D_depths_train) ** 2) * D_weights_train)
+        D_loss_val = D_loss.detach().item()
+        if args.depth_sup:
+            total_loss += D_loss 
+        summary_writer.add_scalar('train/depth_loss', D_loss_val, global_step=iteration)
+
+        if Ortho_reg_weight > 0:
         if Ortho_reg_weight > 0:
             loss_reg = tensorf.vector_comp_diffs()
             total_loss += Ortho_reg_weight*loss_reg
@@ -220,11 +226,9 @@ def reconstruction(args):
         total_loss.backward()
         optimizer.step()
 
-        loss = loss.detach().item()
-        
-        PSNRs.append(-10.0 * np.log(loss) / np.log(10.0))
+        PSNRs.append(-10.0 * np.log(loss_val) / np.log(10.0))
         summary_writer.add_scalar('train/PSNR', PSNRs[-1], global_step=iteration)
-        summary_writer.add_scalar('train/mse', loss, global_step=iteration)
+        summary_writer.add_scalar('train/mse', loss_val, global_step=iteration)
 
 
         for param_group in optimizer.param_groups:
@@ -236,7 +240,8 @@ def reconstruction(args):
                 f'Iteration {iteration:05d}:'
                 + f' train_psnr = {float(np.mean(PSNRs)):.2f}'
                 + f' test_psnr = {float(np.mean(PSNRs_test)):.2f}'
-                + f' mse = {loss:.6f}'
+                + f' mse = {loss_val:.6f}'
+                + f' mse_depth = {D_loss_val:.6f}'
             )
             PSNRs = []
 
