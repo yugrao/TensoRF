@@ -157,7 +157,8 @@ def reconstruction(args):
     torch.cuda.empty_cache()
     PSNRs,PSNRs_test = [],[0]
 
-    allrays, allrgbs = train_dataset.all_rays, train_dataset.all_rgbs
+    allrays, allrgbs, allraysdepths = train_dataset.all_rays, train_dataset.all_rgbs, train_dataset.all_rays_depths
+    
     if not args.ndc_ray:
         allrays, allrgbs = tensorf.filtering_rays(allrays, allrgbs, bbox_only=True)
     trainingSampler = SimpleSampler(allrays.shape[0], args.batch_size)
@@ -178,13 +179,18 @@ def reconstruction(args):
 
         ray_idx = trainingSampler.nextids()
         rays_train, rgb_train = allrays[ray_idx], allrgbs[ray_idx].to(device)
-
+        D_rays_train = allraysdepths[ray_idx][:, :2, :].reshape(-1, 6)
+        D_depths_train = allraysdepths[ray_idx][:, 2, 0].to(device)
+        D_weights_train = allraysdepths[ray_idx][:, 3, 0].to(device)
         #rgb_map, alphas_map, depth_map, weights, uncertainty
         rgb_map, alphas_map, depth_map, weights, uncertainty = renderer(rays_train, tensorf, chunk=args.batch_size,
                                 N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, device=device, is_train=True)
+        D_rgb_map, D_alphas_map, D_depth_map, D_weights, D_uncertainty = renderer(D_rays_train, tensorf, chunk=args.batch_size,
+                                N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, device=device, is_train=True)
 
         loss = torch.mean((rgb_map - rgb_train) ** 2)
-
+        D_loss = torch.mean(((D_depth_map - D_depths_train) ** 2) * D_weights_train)
+        loss += D_loss
 
         # loss
         total_loss = loss
