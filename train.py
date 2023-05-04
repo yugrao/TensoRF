@@ -162,6 +162,7 @@ def reconstruction(args):
     if not args.ndc_ray:
         allrays, allrgbs = tensorf.filtering_rays(allrays, allrgbs, bbox_only=True)
     trainingSampler = SimpleSampler(allrays.shape[0], args.batch_size)
+    D_trainingSampler = SimpleSampler(allraysdepths.shape[0], args.batch_size)
 
     Ortho_reg_weight = args.Ortho_weight
     print("initial Ortho_reg_weight", Ortho_reg_weight)
@@ -178,10 +179,11 @@ def reconstruction(args):
 
 
         ray_idx = trainingSampler.nextids()
+        D_ray_idx = D_trainingSampler.nextids()
         rays_train, rgb_train = allrays[ray_idx], allrgbs[ray_idx].to(device)
-        D_rays_train = allraysdepths[ray_idx][:, :2, :].reshape(-1, 6)
-        D_depths_train = allraysdepths[ray_idx][:, 2, 0].to(device)
-        D_weights_train = allraysdepths[ray_idx][:, 3, 0].to(device)
+        D_rays_train = allraysdepths[D_ray_idx][:, :2, :].reshape(-1, 6)
+        D_depths_train = allraysdepths[D_ray_idx][:, 2, 0].to(device)
+        D_weights_train = allraysdepths[D_ray_idx][:, 3, 0].to(device)
         #rgb_map, alphas_map, depth_map, weights, uncertainty
         rgb_map, alphas_map, depth_map, weights, uncertainty = renderer(rays_train, tensorf, chunk=args.batch_size,
                                 N_samples=nSamples, white_bg = white_bg, ndc_ray=ndc_ray, device=device, is_train=True)
