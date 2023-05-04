@@ -8,7 +8,7 @@ from torchvision import transforms as T
 
 from .ray_utils import *
 from DSNeRF.load_llff import load_colmap_depth
-from DSNeRF.run_nerf_helpers import *
+from DSNeRF.run_nerf_helpers import get_rays_by_coord_np
 
 
 def normalize(v):
@@ -222,20 +222,19 @@ class LLFFDataset(Dataset):
 
             self.all_rays += [torch.cat([rays_o, rays_d], 1)]  # (h*w, 6)
 
-        self.all_depths = load_colmap_depth(self.root_dir, factor=self.downsample)
-        self.rays_depths = []
+        self.all_depths = np.array(load_colmap_depth(self.root_dir, factor=int(self.downsample)))[img_list]
+        rays_depth_list = []
         for i in range(len(self.all_depths)):
-            rays_depth = np.stack(get_rays_by_coord_np(H, W, self.focal[0], c2w, self.all_depths[i]['coord']), axis=0)
+            rays_depth = np.stack(get_rays_by_coord_np(H, W, self.focal[0], np.array(c2w), self.all_depths[i]['coord']), axis=0)
             rays_depth = np.transpose(rays_depth, [1,0,2])
             depth_value = np.repeat(self.all_depths[i]['depth'][:,None,None], 3, axis=2) # N x 1 x 3
             weights = np.repeat(self.all_depths[i]['error'][:,None,None], 3, axis=2) # N x 1 x 3
             rays_depth = np.concatenate([rays_depth, depth_value, weights], axis=1) # N x 4 x 3
             rays_depth_list.append(rays_depth)
         self.rays_depths = np.concatenate(rays_depth_list, axis=0)
+        self.rays_depths = torch.from_numpy(self.rays_depths)
+        breakpoint()
 
-        self.all_depths = [self.all_depths[i] for i in img_list]
-        self.rays_depths = [self.rays_depths[i] for i in img_list]
-        
         if not self.is_stack:
             self.all_rays = torch.cat(self.all_rays, 0) # (len(self.meta['frames])*h*w, 3)
             self.all_rgbs = torch.cat(self.all_rgbs, 0) # (len(self.meta['frames])*h*w,3)
