@@ -202,7 +202,6 @@ def reconstruction(args):
         summary_writer.add_scalar('train/depth_loss', D_loss_val, global_step=iteration)
 
         if Ortho_reg_weight > 0:
-        if Ortho_reg_weight > 0:
             loss_reg = tensorf.vector_comp_diffs()
             total_loss += Ortho_reg_weight*loss_reg
             summary_writer.add_scalar('train/reg', loss_reg.detach().item(), global_step=iteration)

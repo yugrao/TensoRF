@@ -200,7 +200,7 @@ class LLFFDataset(Dataset):
 
         average_pose = average_poses(self.poses)
         dists = np.sum(np.square(average_pose[:3, 3] - self.poses[:, :3, 3]), -1)
-        if low_data:
+        if self.low_data:
             TOTAL_DATA_LEN = 8
             subset_imgs = np.linspace(0, self.poses.shape[0], 8, dtype=int)
             i_test_idx = np.arange(0, TOTAL_DATA_LEN, self.hold_every)  # [np.argmin(dists)]
